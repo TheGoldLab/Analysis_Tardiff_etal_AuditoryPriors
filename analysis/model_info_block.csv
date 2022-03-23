@@ -1,0 +1,5 @@
+name,predicted,params,lle,title,data,prior,pretone,prob_correct_forced,predicted_smooth
+m3lb-1,m3lb-1_predicted_2021-06-21.csv,m3lb-1_params_2021-06-21.csv,m3lb-1_lle_2021-06-21.csv,priorOnly,priorOnly_28-Jan-2020.csv,1,0,1,m3lb-1_predicted_smooth_2022-03-02.csv
+m14-1,m14-1_pretoneOnly_predicted_2021-07-22.csv,m14-1_pretoneOnly_params_2021-07-22.csv,m14-1_pretoneOnly_lle_2021-07-22.csv,pretoneOnly,pretoneOnly_26-Apr-2020.csv,0,1,1,m14-1_pretoneOnly_predicted_smooth_2022-03-02.csv
+m16ptlh-1,m16ptlh-1_pretone_pLH_predicted_2021-07-22.csv,m16ptlh-1_pretone_pLH_params_2021-07-22.csv,m16ptlh-1_pretone_pLH_lle_2021-07-22.csv,pretone_pLH,pretone_pL_pretone_pH_28-Sep-2020.csv,1,1,1,
+m16pt5-1,m16pt5-1_pretone5_predicted_2021-07-28.csv,m16pt5-1_pretone5_params_2021-07-28.csv,m16pt5-1_pretone5_lle_2021-07-28.csv,pretone5,pretone5_28-Sep-2020.csv,1,1,1,
