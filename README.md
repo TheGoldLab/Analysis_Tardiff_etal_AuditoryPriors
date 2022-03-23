@@ -1,6 +1,6 @@
 This folder contains analysis scripts used in the paper "Rule-based and stimulus-based cues bias auditory decisions via different computational and physiological mechanisms" by Nathan Tardiff, Lalitta Suriya-Arunroj, Yale E. Cohen, and Joshua I. Gold.
 
-The data is available at: https://osf.io/f9nyr/. 
+The data are available at: https://osf.io/f9nyr/. 
 
 The analysis code (analysis and DDM fitting) is avalable at at: https://github.com/TheGoldLab/Analysis_Tardiff_etal_AuditoryPriors.
 
