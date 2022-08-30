@@ -20,6 +20,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os.path
 import warnings
+import copy
 
 from ddm import set_N_cpus
 from datetime import date
@@ -86,8 +87,16 @@ def main():
     plt.show()
     
     #extract fit indicies and save
+    #first we need to correct drift variability model likelihoods
+    if model_info.data_loader==helpers.load_data_priorOnly_dv:
+        models_for_stats = copy.deepcopy(models) #create a copy so we don't disrupt other operations on models (this is overly cautious)
+        for m,s in zip(models_for_stats.values(),samples.values()):
+            m.fitresult = helpers.driftvar_ll(m,s)
+    else:
+        models_for_stats = models
+    
     fit_stats = pd.DataFrame.from_records(
-        gdw.get_fit_stats(m) for m in models.values())
+        gdw.get_fit_stats(m) for m in models_for_stats.values())
     fit_stats.sort_values('subject',inplace=True)
     
     if output:
@@ -98,7 +107,8 @@ def main():
     
     #extract solutions
     soldf = [helpers.format_predicted(gdw.get_predicted(mod,samp,
-                                                        undec=undec,forced=forced)) 
+                                                        undec=undec,forced=forced,
+                                                        method=model_info.method)) 
             for mod,samp in zip(models.values(),samples.values())]
     
     soldf = pd.concat(soldf)
