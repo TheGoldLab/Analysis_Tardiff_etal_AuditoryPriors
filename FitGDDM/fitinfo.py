@@ -13,31 +13,40 @@ import helpers
 
 class FitInfo:
     
-    def __init__(self,sess,data,data_loader,model_name,rundate=None):
+    def __init__(self,sess,data,data_loader,model_name,rundate=None,method=None):
         self.sess = sess
         self.data = data
         self.data_loader = data_loader
         self.model_name = model_name
         self.rundate = rundate
+        self.method = method #for overriding default solver
         
         
 class PriorFitInfo(FitInfo):
     
-    def __init__(self,model_name,rundate=None):
+    def __init__(self,model_name,**kwargs):
         super().__init__(sess='priorOnly',
                          data='./data/priorOnly_28-Jan-2020.csv',
                          data_loader=helpers.load_data_priorOnly,
+                         model_name=model_name)
+        
+class PriorDVFitInfo(FitInfo):
+    
+    def __init__(self,model_name,rundate=None):
+        super().__init__(sess='priorOnly',
+                         data='./data/priorOnly_28-Jan-2020.csv',
+                         data_loader=helpers.load_data_priorOnly_dv,
                          model_name=model_name,
                          rundate=rundate)
         
 class PretoneFitInfo(FitInfo):
     
-    def __init__(self,data_loader,model_name,rundate=None):
+    def __init__(self,data_loader,model_name,**kwargs):
         super().__init__(sess='pretoneOnly',
                          data='./data/pretoneOnly_26-Apr-2020.csv',
                          data_loader=data_loader,
                          model_name=model_name,
-                         rundate=rundate)
+                         **kwargs)
         
 class PT5FitInfo(FitInfo):
     def __init__(self,model_name,rundate=None):
@@ -61,18 +70,33 @@ class PTLHFitInfo(FitInfo):
                          rundate=rundate)
         
 precue_models = {
-    'm0int': PriorFitInfo(model_name='m0int-1_priorOnly'),
-    'm0intlb': PriorFitInfo(model_name='m0intlb-1_priorOnly'),
-    'm3lbn' : PriorFitInfo(model_name='m3lb-1'), #fit w/ numerical solver (using this)
-    'm3lba' : PriorFitInfo(model_name='m3lb-1_priorOnly'), #fit w/ analytical solver
+    'm0int': PriorFitInfo(model_name='m0int-1_priorOnly',method='implicit'),
+    'm0intlb': PriorFitInfo(model_name='m0intlb-1_priorOnly',method='implicit'),
+    'm1lb': PriorFitInfo(model_name='m1lb-1_priorOnly',method='implicit'),
+    'm2lb': PriorFitInfo(model_name='m2lb-1_priorOnly',method='implicit'),
+    'm3': PriorFitInfo(model_name='m3-1_priorOnly',method='implicit'),
+    'm3lbn' : PriorFitInfo(model_name='m3lb-1',method='implicit'), #fit w/ numerical solver (using this)
+    'm3dv' : PriorDVFitInfo(model_name='m3dv-1_priorOnly'), 
     }
 pretone_models = {
     'm0int': PretoneFitInfo(
         data_loader=helpers.load_data_pretoneOnly_prior,
-        model_name='m0int-1_pretoneOnly'),
+        model_name='m0int-1_pretoneOnly',
+        method='implicit'),
     'm0intlb': PretoneFitInfo(
         data_loader=helpers.load_data_pretoneOnly_prior,
-        model_name='m0intlb-1_pretoneOnly'),
+        model_name='m0intlb-1_pretoneOnly',
+        method='implicit'),
+    'm13int': PretoneFitInfo(
+        data_loader = lambda d,**kwargs: \
+                helpers.load_data_pretoneOnly_ind(
+                    d,14,**kwargs),
+        model_name='m13int-1_pretoneOnly'),
+    'm19': PretoneFitInfo(
+        data_loader = lambda d,**kwargs: \
+                helpers.load_data_pretoneOnly_ind(
+                    d,14,**kwargs),
+        model_name='m19-1_pretoneOnly'),
     'm14': PretoneFitInfo(
         data_loader = lambda d,**kwargs: \
                 helpers.load_data_pretoneOnly_ind(

@@ -34,6 +34,41 @@ class DriftCohBias(Drift):
             v_bias = -v_bias
         
         return self.v_SNR * conditions['SNR'] + v_bias
+ 
+ 
+#FROM: https://pyddm.readthedocs.io/en/stable/cookbook/driftnoise.html#drift-uniform
+RESOLUTION = 11    
+class DriftUniformCohBias(Drift):
+    """Drift with trial-to-trial variability.
+    
+    Note that this is a numerical approximation to trial-to-trial
+    drift rate variability and is inefficient.  It also requires
+    running the "prepare_sample_for_variable_drift" function above on
+    the data.
+    """
+    name = "Uniformly-distributed drift, Drift depends linearly on coherence, with additive prior bias"
+    resolution = RESOLUTION # Number of bins, should be an odd number
+    required_parameters = ["v_SNR","v_High","v_No","v_Low","v_Width"] # Mean drift and the width of the uniform distribution
+    required_conditions = ["SNR","prior","isH","driftnum"]
+    def get_drift(self, conditions, **kwargs):
+        v_switch = {
+            -2 : self.v_Low,
+            0 : self.v_No,
+            2 : self.v_High
+        }
+        v_bias = v_switch[conditions['prior']]
+        # We need to change the directoin of the biases to reflect accuracy coding
+        # Note that we want v_Low to be negative, as in stimulus coding
+        # ie when is high, should push toward the error bound.
+        if not conditions['isH']:
+            v_bias = -v_bias
+        
+        #pick drift from uniform
+        stepsize = self.v_Width/(self.resolution-1)
+        mindrift = self.v_SNR - self.v_Width/2
+        v_snr = mindrift + stepsize*conditions['driftnum']
+        
+        return v_snr * conditions['SNR'] + v_bias
     
 class DriftCohInt(Drift):
     name = "Drift depends linearly on coherence, with additive offset"
@@ -183,7 +218,8 @@ def pt_loc(pts):
 
 #based on: https://pyddm.readthedocs.io/en/latest/cookbook/initialconditions.html#ic-biased
 #NOTE: original fits for legacy reasons used the numerical solver
-#changed superclass to ICPoint for analytical
+#change superclass to ICPoint for analytical
+#no, pass solving method to priorGDDM.py!
 class ICPointPrior(ICPoint):
     name = "A prior-biased starting point."
     required_parameters = ["z_No","z_High","z_Low"]
@@ -208,7 +244,8 @@ class ICPointPrior(ICPoint):
 
 #NOTE: for legacy reasons this uses the numerical solver
 #change to ICPoint for analytical    
-class ICPointInt(InitialCondition):
+#no, pass solving method to priorGDDM.py!
+class ICPointInt(ICPoint):
     name = "A biased starting point."
     required_parameters = ["z_No"]
     required_conditions = ["isH"]

@@ -9,6 +9,10 @@ helper functions for AuditoryPriors data
 import numpy as np
 import pandas as pd
 import gddmwrapper as gdw
+import copy
+from ddm import Sample
+from ddm.fitresult import FitResult
+from ddm.models import LossLikelihood
 
 
 #base preprocessing for all data
@@ -61,6 +65,19 @@ def load_data_priorOnly(data_file,**kwargs):
                                 conds=['SNR','prior','isH'],
                                 preproc=base_preproc,
                                 **kwargs)
+
+#load data for precue w/ uniform drift variability
+def load_data_priorOnly_dv(data_file,**kwargs):
+    
+    sample,subj =  gdw.load_data(data_file,rt='RT',correct='success',
+                                conds=['SNR','prior','isH'],
+                                preproc=base_preproc,
+                                **kwargs)            
+    if isinstance(sample,dict):
+        sample = {k:prepare_sample_for_variable_drift(s) for k,s in sample.items()}
+    else:
+        sample = prepare_sample_for_variable_drift(sample)
+    return sample,subj
 
 #loader for reduced pretone models
 def load_data_pretoneOnly_prior(data_file,**kwargs):
@@ -135,3 +152,92 @@ def format_predicted(soldf):
      soldf.loc[soldf.isH==0,'mean_chooseH'] = soldf.loc[soldf.isH==0,'mean_err']
          
      return soldf
+     
+#this is for preparing for fitting uniform drift rate variability
+#FROM: https://pyddm.readthedocs.io/en/stable/cookbook/driftnoise.html#drift-uniform
+def prepare_sample_for_variable_drift(sample, resolution=11):
+    new_samples = []
+    for i in range(0, resolution):
+        corr = sample.corr.copy()
+        err = sample.err.copy()
+        undecided = sample.undecided
+        conditions = copy.deepcopy(sample.conditions)
+        conditions['driftnum'] = (np.asarray([i]*len(corr)),
+                                  np.asarray([i]*len(err)),
+                                  np.asarray([i]*undecided))
+        new_samples.append(Sample(corr, err, undecided, **conditions))
+    new_sample = new_samples.pop()
+    for s in new_samples:
+        new_sample += s
+    return new_sample
+     
+#this function corrects the driftvar log-likelihood, which is incorrect in 
+#model output due to the sample replication necessary to run this model
+def driftvar_ll(model,sample):
+    print('Correcting driftvar ll: This may take a minute...')
+    #solve model
+    sol = gdw.solve_some_conditions(model,sample)
+    
+    #get all driftnums (the discretization of drift variability)
+    driftnums = frozenset(('driftnum',x) for x in sample.condition_values('driftnum'))
+    #dict to translate from full sample conditions to reduced conditions w/o driftnum
+    full_to_reduc = {c:c-driftnums for c in sol.keys()}
+    
+    fullconds = np.array(list(sol.keys())) #list of all conditions for filtering
+    #dict to translate from reduced conditiions to full conditions
+    reduc_to_full = {u:fullconds[[u.issubset(f) for f in fullconds]] 
+              for u in frozenset(full_to_reduc.values())}
+    
+    #integrate out driftnum (aka average over driftnum pdfs to achieve reduced pdfs)
+    pdf_corr_ave = {k:np.mean([sol[s].pdf_corr() for s in v],axis=0) 
+                for k,v in reduc_to_full.items()}
+    pdf_err_ave = {k:np.mean([sol[s].pdf_err() for s in v],axis=0) 
+                    for k,v in reduc_to_full.items()}
+    
+    #let's do a bunch of sanity checks
+    pdf_check = np.array([np.trapz(c,dx=model.dt)+np.trapz(e,dx=model.dt) 
+                 for c,e in zip(pdf_corr_ave.values(),pdf_err_ave.values())])
+    pdf_undec_ave = {k:np.mean([sol[s].prob_undecided() for s in v],axis=0) 
+                    for k,v in reduc_to_full.items()} #add in undec prob so pdfs sum to ~1
+    pdf_check += list(pdf_undec_ave.values())
+
+    assert np.all((1-pdf_check) < 0.001), "pdfs do not sum to 1!" 
+    #print("max pdf deviation from 1: %s" % np.max(np.abs(1-pdf_check)))
+    assert np.all([s.undec==None for s in sol.values()]), "Handling of undecided trials not implemented!"
+    
+    corr_ave_check = {k:np.mean([sol[s].prob_correct() for s in v])
+                    for k,v in reduc_to_full.items()}
+    corr_ave_check2 = {k:np.trapz(v,dx=model.dt) for k,v in pdf_corr_ave.items()}
+    assert np.all([(c1-c2)<0.001] for c1,c2 in zip(corr_ave_check.values(),corr_ave_check2.values())), "Mean prob corrects do not match"
+    
+    err_ave_check = {k:np.mean([sol[s].prob_error() for s in v])
+                    for k,v in reduc_to_full.items()}
+    err_ave_check2 = {k:np.trapz(v,dx=model.dt) for k,v in pdf_err_ave.items()}
+    assert np.all([(c1-c2)<0.001] for c1,c2 in zip(err_ave_check.values(),err_ave_check2.values())), "Mean prob errors do not match"
+       
+    #get losslikelihood for only one replicate of sample (i.e. original sample)
+    samp0 = sample.subset(driftnum=0)
+    loss = LossLikelihood(samp0,dt=model.dt,T_dur=model.T_dur)
+    
+    #now compute log likelihood
+    loglikelihood = 0
+    for k in samp0.condition_combinations():
+        #convert dict returned by condition_combinations to frozenset for use as dict key
+        k = frozenset(k.items())
+        
+        #pdfs are indexed by empirical histograms
+        #correct pdf is chosen by indexing averaged pdfs for each full condiiton using the
+        #full_to_reduc dict
+        loglikelihood += np.sum(np.log(pdf_corr_ave[full_to_reduc[k]][loss.hist_indexes[k][0]]))
+        loglikelihood += np.sum(np.log(pdf_err_ave[full_to_reduc[k]][loss.hist_indexes[k][1]]))
+    
+    #create new fitresult object with corrected ll/sample size
+    res = FitResult(method=model.get_fit_result().method,
+                fitting_method=model.get_fit_result().fitting_method, 
+                loss=model.get_fit_result().loss, value=-loglikelihood,
+                nparams=model.get_fit_result().properties['nparams'], 
+                samplesize=len(samp0),
+                mess=model.get_fit_result().properties['mess'])
+        
+    
+    return res #-loglikelihood

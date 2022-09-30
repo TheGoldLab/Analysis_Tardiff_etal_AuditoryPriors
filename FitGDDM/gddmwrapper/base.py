@@ -12,9 +12,10 @@ import warnings
 import itertools
 import copy
 from ddm import Sample,Fitted
-from ddm.functions import fit_adjust_model,dependence_hit_boundary,solve_all_conditions
+from ddm.functions import fit_adjust_model,dependence_hit_boundary,solve_partial_conditions
 from datetime import date
 from glob import glob
+from math import fsum
 
 
 def load_data(data_file,rt='rt',correct='correct',conds=None,preproc=None,
@@ -217,15 +218,18 @@ def get_fit_stats(model):
      
     return fit_stats
 
+def mean_err_time(sol):
+    """The mean decision time in the error trials (excluding undecided trials)."""
+    return fsum((sol.err)*sol.model.t_domain()) / sol.prob_error()
 
-def get_predicted(model,sample,undec=False,forced=False,**kwargs):
+def get_predicted(model,sample,undec=False,forced=False,err_RT=False,**kwargs):
     '''
     gets predicted correct and errror probabilities and mean RTs for a given
     model. Useful for plotting psychometric/chronometric functions.
     Values are based on analytical/numerical solutions to model,
     not sampling.
     
-    NOTE: currently only return correct RTs.
+    NOTE: can now return error RTs if flag passsed (experimental!).
     '''
     #solve the model for all conditions
     print('Solving model for all conditions. May take a minute...')
@@ -236,6 +240,8 @@ def get_predicted(model,sample,undec=False,forced=False,**kwargs):
     soldf.update({'mean_corr':[],'mean_err':[],'mean_RT_corr':[]})
     if undec:
         soldf.update({'mean_undec':[]})
+    if err_RT:
+        soldf.update({'mean_RT_err':[]})
         
     for sol in sols.values():
         for k,v in sol.conditions.items():
@@ -251,6 +257,8 @@ def get_predicted(model,sample,undec=False,forced=False,**kwargs):
         
         if undec:
             soldf['mean_undec'].append(sol.prob_undecided())
+        if err_RT:
+            soldf['mean_RT_err'].append(mean_err_time(sol))
 
     soldf = pd.DataFrame.from_dict(soldf)
     
@@ -261,8 +269,28 @@ def get_predicted(model,sample,undec=False,forced=False,**kwargs):
     
     return soldf
 
+def get_pdfs(model,sample,**kwargs):
+    '''
+    returns pdfs of the predicted correct and error RT distributions
+    '''
+    #solve the model for all conditions
+    print('Extracting model pdfs. May take a minute...')
+    sol = solve_partial_conditions(model, sample, **kwargs)
 
-#adapted from PyDDM code
+    pdf_df = pd.DataFrame({'t_domain':model.t_domain(),
+                           'pdf_corr':sol.pdf_corr(),
+                           'pdf_err':sol.pdf_err()})
+    
+    if hasattr(model,'subject'):
+        pdf_df ['subject'] = model.subject
+    else:
+        warnings.warn('No subject name detected in model.')
+        
+    if hasattr(model,'sess') and (model.sess is not None):
+        pdf_df ['session'] = model.sess
+    
+    return pdf_df
+
 def condition_combinations(sample, required_conditions=None,cond_filter=None,
                            cond_replace=None,cond_augment=None):
     """Get all values for set conditions and return every combination of them.

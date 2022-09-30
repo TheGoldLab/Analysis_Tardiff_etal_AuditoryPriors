@@ -26,7 +26,7 @@ from datetime import date
 def main():
     set_N_cpus(6)
     
-    model_info = fitinfo.pretone_models['m14'] #fitinfo.precue_models['m3lbn'] #fitinfo.all_models['m16pt5']  #fitinfo.all_models['m16pt5'] #fitinfo.precue_models['m3lb'] #fitinfo.all_models['m16'] #fitinfo.pretone_models['m11lb-14']
+    model_info = fitinfo.pretone_models['m0intlb'] #fitinfo.precue_models['m3lbn'] #fitinfo.all_models['m16pt5']  #fitinfo.all_models['m16pt5'] #fitinfo.precue_models['m3lb'] #fitinfo.all_models['m16'] #fitinfo.pretone_models['m11lb-14']
     output = True
     undec=True
     output_undec=False
@@ -77,7 +77,8 @@ def main():
                                                         undec=undec,forced=forced,
                                                         cond_filter=cond_filter,
                                                         cond_replace=cond_replace,
-                                                        cond_augment=cond_augment)) 
+                                                        cond_augment=cond_augment,
+                                                        method=model_info.method)) 
             for mod,samp in zip(models.values(),samples.values())]
     
     soldf = pd.concat(soldf)
